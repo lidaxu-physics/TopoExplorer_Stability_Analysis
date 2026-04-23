@@ -1028,7 +1028,9 @@ class MainWindow(QMainWindow):
         nx1, ny1 = self.spn_nx1.value(), self.spn_ny1.value()
         NL, Nxt, Nyt, id_, od_ = get_lattice_params(h, nx0, ny0, nx1, ny1)
         isite = s['isite'] if 1 <= s['isite'] <= NL else id_
-        osite = s['osite'] if 1 <= s['osite'] <= NL else od_
+        # Always reset osite to the type default on rebuild so it tracks
+        # the lattice size (e.g. Nx₀·Ny₀ − Nx₀ + 1 for standard types).
+        osite = od_
         s.update(h_str=h, nx0=nx0, ny0=ny0, nx1=nx1, ny1=ny1,
                  NL=NL, Nxt=Nxt, Nyt=Nyt,
                  isite=isite, osite=osite, is_zz=(h == 'A_zigzag'),
@@ -1350,7 +1352,8 @@ class MainWindow(QMainWindow):
         sw_s     = self.spn_ss.value(); sw_e = self.spn_se.value(); sw_t = self.spn_st.value()
         NL, Nxt, Nyt, id_, od_ = get_lattice_params(h, nx0, ny0, nx1, ny1)
         isite = s['isite'] if 1 <= s['isite'] <= NL else id_
-        osite = s['osite'] if 1 <= s['osite'] <= NL else od_
+        # Always reset osite to type default so it tracks lattice size
+        osite = od_
         s.update(h_str=h, nx0=nx0, ny0=ny0, nx1=nx1, ny1=ny1,
                  j1=j1, kin=kin, kex=kex,
                  phi_iqh0=phi_iqh0, phi_iqh1=phi_iqh1,
