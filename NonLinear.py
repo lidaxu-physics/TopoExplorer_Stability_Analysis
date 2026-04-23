@@ -4579,33 +4579,52 @@ class _SlowTimeWindowMethods:
         vl.addWidget(canvas, stretch=1)
 
         # ── Draw placeholder layout immediately so window isn't blank ──
+        # The placeholder mirrors the post-Start-Analysis layout exactly
+        # (same gridspec, same axis styling, same labels/ticks) so the
+        # window's geometry doesn't shift when analysis completes.
+        # Only differences: panels have no data drawn, and wide panels
+        # carry a centred "Press ▶ Start Analysis" hint.
         def _draw_placeholder(msg='Press  ▶ Start Analysis  to begin.'):
             fig.clear()
-            fig.subplots_adjust(left=0.05, right=0.98, top=0.93, bottom=0.06,
+            fig.subplots_adjust(left=0.05, right=0.98, top=0.93, bottom=0.09,
                                 hspace=0.55, wspace=0.4)
             gs_ph = fig.add_gridspec(3, 6,
-                                     width_ratios=[1,1,1,1,1,1],
+                                     width_ratios=[1, 1, 1, 1, 1, 1],
                                      height_ratios=[1.1, 0.85, 1.05])
-            titles = [
-                (gs_ph[0, 0:2], 'Eigenvalue spectrum'),
-                (gs_ph[0, 2:4], 'Eigenvec on lattice'),
-                (gs_ph[0, 4:6], 'Photonic flow'),
-                (gs_ph[1, 0:3], 'Mode power vs slow time  (top 5)'),
-                (gs_ph[1, 3:6], 'Mode power at snapshot'),
-                (gs_ph[2, 0:2], '|A(θ,t)|²  (linear)'),
-                (gs_ph[2, 2:3], '|A(θ)|²  snapshot'),
-                (gs_ph[2, 3:5], '|A(μ,t)|²  (dB)'),
-                (gs_ph[2, 5:6], '|A(μ)|²  snapshot'),
-            ]
-            for spec, ttl in titles:
-                ax = fig.add_subplot(spec)
+
+            def _style_ph(ax, ttl):
                 ax.set_facecolor(PANEL_BG)
-                ax.set_xticks([]); ax.set_yticks([])
                 ax.set_title(ttl, color=TEXT_DIM, fontsize=8, pad=2)
-                ax.text(0.5, 0.5, msg, transform=ax.transAxes,
-                        ha='center', va='center', color='#3a4560',
-                        fontsize=9, fontstyle='italic')
-                for sp in ax.spines.values(): sp.set_edgecolor('#1e2230')
+                ax.tick_params(colors=TEXT_COL, labelsize=6)
+                for sp in ax.spines.values(): sp.set_edgecolor('#3a4560')
+
+            # (slice, title, xlabel, ylabel, is_wide)
+            # is_wide: whether this panel is wide enough to show the full
+            # centred "Press Start Analysis" hint. Narrow (1-col) panels
+            # stay empty so their proportions match the post-click layout
+            # exactly.
+            panels = [
+                (gs_ph[0, 0:2], 'Eigenvalue spectrum',              'Mode index', 'λ (J)',        True),
+                (gs_ph[0, 2:4], 'Eigenvec on lattice',              None,         None,            True),
+                (gs_ph[0, 4:6], 'Photonic flow',                    None,         None,            True),
+                (gs_ph[1, 0:3], 'Mode power vs slow time  (top 5)', 'Iteration',  'Norm. |A|²',    True),
+                (gs_ph[1, 3:6], 'Mode power at snapshot',           'Mode index k', 'Norm. |A|²',  True),
+                (gs_ph[2, 0:2], '|A(θ,t)|²  (linear)',              'Iteration',  'θ',             True),
+                (gs_ph[2, 2:3], '|A(θ)|²  snapshot',                'θ',          None,            False),
+                (gs_ph[2, 3:5], '|A(μ,t)|²  (dB)',                  'Iteration',  'FSR μ',         True),
+                (gs_ph[2, 5:6], '|A(μ)|²  snapshot',                'FSR μ',      'dB',            False),
+            ]
+            for spec, ttl, xlab, ylab, is_wide in panels:
+                ax = fig.add_subplot(spec)
+                _style_ph(ax, ttl)
+                if xlab: ax.set_xlabel(xlab, color=TEXT_DIM, fontsize=7)
+                if ylab: ax.set_ylabel(ylab, color=TEXT_DIM, fontsize=7)
+                ax.set_xticks([]); ax.set_yticks([])
+                ax.grid(True, color=GRID_COL, lw=0.4)
+                if is_wide:
+                    ax.text(0.5, 0.5, msg, transform=ax.transAxes,
+                            ha='center', va='center', color='#3a4560',
+                            fontsize=9, fontstyle='italic')
             canvas.draw()
 
         _draw_placeholder()
@@ -4653,9 +4672,19 @@ class _SlowTimeWindowMethods:
         btn_save  = QPushButton('💾  Save'); btn_save.setEnabled(False)
         btn_save.setStyleSheet('QPushButton:enabled{color:#00e5ff;border-color:#00e5ff;}'
                                'QPushButton:disabled{color:#2a3050;}')
+        # Movie export buttons — time-evolution of k-fixed mode-power bar + A(θ)/A(μ) snaps
+        btn_gif = QPushButton('🎞  GIF'); btn_gif.setEnabled(False)
+        btn_mp4 = QPushButton('🎬  MP4'); btn_mp4.setEnabled(False)
+        _movie_style = ('QPushButton:enabled{color:#ffb84a;border-color:#ffb84a;}'
+                        'QPushButton:disabled{color:#2a3050;}')
+        btn_gif.setStyleSheet(_movie_style); btn_mp4.setStyleSheet(_movie_style)
+        btn_gif.setToolTip('Export time-evolution movie: mode-power bar + |A(θ)|² + |A(μ)|²\n'
+                           'for the currently-selected supermode k over a range of snapshot steps.')
+        btn_mp4.setToolTip(btn_gif.toolTip())
         btn_close = QPushButton('✕  Close')
         btn_close.setStyleSheet('color:#ff4a6e;border-color:#ff4a6e;')
-        for b in (btn_start, btn_stop, btn_save, btn_close): ctrl_row.addWidget(b)
+        for b in (btn_start, btn_stop, btn_save, btn_gif, btn_mp4, btn_close):
+            ctrl_row.addWidget(b)
         vl.addLayout(ctrl_row)
         btn_close.clicked.connect(win.close)
 
@@ -5089,6 +5118,7 @@ class _SlowTimeWindowMethods:
             spn_step.setEnabled(True);  sld_step.setEnabled(True)
 
             btn_stop.setEnabled(False); btn_save.setEnabled(True)
+            btn_gif.setEnabled(True); btn_mp4.setEnabled(True)
 
             # Draw heatmaps + snapshots for closest mode
             _update_supermode(closest_idx)
@@ -5121,6 +5151,194 @@ class _SlowTimeWindowMethods:
                          mode_power_t=r['mode_power_t'],
                          x_iters=r['x_iters'])
             self._modal_status.setText(f'✅ Saved → {os.path.basename(folder)}')
+
+        # ── Movie export: time-evolution of mode-power bar + A(θ) + A(μ) ──
+        # Sweeps the snapshot step axis with the currently-selected supermode k
+        # fixed. Three stacked panels per frame. Uses global (over-range) y-axis
+        # maxima so bars and snapshot curves are comparable across frames.
+        def _export_movie(fmt):
+            r = win._result
+            if not r:
+                self._modal_status.setText('Run analysis first.'); return
+            NS = r['NS']
+            k_fixed = r['cur_k']
+
+            # ── Dialog for frame range / interval / fps ──────────────
+            dlg = QDialog(win)
+            dlg.setWindowTitle(f'Export {fmt.upper()} — modal time evolution')
+            dlg.setStyleSheet(STYLE); dlg.setMinimumWidth(340)
+            fl = QGridLayout(dlg); fl.setSpacing(6)
+            def _lb(t):
+                lb = QLabel(t); lb.setStyleSheet('color:#c8d0e7;font-size:13px;'); return lb
+
+            spn_s = QSpinBox(); spn_s.setRange(0, NS-1); spn_s.setValue(max(0, NS-1001))
+            spn_e = QSpinBox(); spn_e.setRange(0, NS-1); spn_e.setValue(NS-1)
+            spn_t = QSpinBox(); spn_t.setRange(1, max(1, NS//2)); spn_t.setValue(10)
+            spn_t.setToolTip('Save every N-th snapshot as a frame')
+            spn_fps = QSpinBox(); spn_fps.setRange(1, 60)
+            spn_fps.setValue(5 if fmt == 'gif' else 10)
+            spn_fps.setToolTip('Playback frame rate (frames per second)')
+
+            fl.addWidget(_lb(f'Fixed supermode k = {k_fixed}'), 0, 0, 1, 2)
+            fl.addWidget(_lb('Start step:'),    1, 0); fl.addWidget(spn_s,   1, 1)
+            fl.addWidget(_lb('End step:'),      2, 0); fl.addWidget(spn_e,   2, 1)
+            fl.addWidget(_lb('Step interval:'), 3, 0); fl.addWidget(spn_t,   3, 1)
+            fl.addWidget(_lb('Playback FPS:'),  4, 0); fl.addWidget(spn_fps, 4, 1)
+
+            lbl_n = QLabel(''); lbl_n.setStyleSheet('color:#4a5270;font-size:12px;')
+            fl.addWidget(lbl_n, 5, 0, 1, 2)
+            def _update_n(*_):
+                s = spn_s.value(); e = spn_e.value(); t = spn_t.value(); f_ = spn_fps.value()
+                n = max(0, (e - s) // t + 1) if e >= s else 0
+                dur = n / f_ if f_ > 0 else 0
+                lbl_n.setText(f'→  {n} frames  |  duration ≈ {dur:.1f} s at {f_} fps')
+            for w in (spn_s, spn_e, spn_t, spn_fps): w.valueChanged.connect(_update_n)
+            _update_n()
+
+            btn_row = QHBoxLayout()
+            btn_ok  = QPushButton('Export'); btn_ok.clicked.connect(dlg.accept)
+            btn_can = QPushButton('Cancel'); btn_can.clicked.connect(dlg.reject)
+            btn_row.addStretch(); btn_row.addWidget(btn_ok); btn_row.addWidget(btn_can)
+            fl.addLayout(btn_row, 6, 0, 1, 2)
+
+            if dlg.exec_() != QDialog.Accepted: return
+
+            s_start = spn_s.value(); s_end = spn_e.value(); s_step = spn_t.value()
+            fps_val = spn_fps.value()
+            if s_end < s_start: s_start, s_end = s_end, s_start
+            steps = list(range(s_start, s_end + 1, s_step))
+            if not steps:
+                self._modal_status.setText('No frames in range.'); return
+
+            folder = p.get('session_folder') or os.path.join(os.path.expanduser('~'), 'Documents')
+            os.makedirs(folder, exist_ok=True)
+            fname = (f'modal_movie_k{k_fixed}_s{s_start}_e{s_end}'
+                     f'_step{s_step}_fps{fps_val}.{fmt}')
+            out   = os.path.join(folder, fname)
+
+            # ── Pre-compute global y-limits so frames are comparable ──
+            mode_power_t = r['mode_power_t']          # (NL, NS)
+            A_th_k       = r['A_modes_th'][k_fixed]    # (NF, NS) θ domain
+            A_mu_k       = r['A_modes_mu'][k_fixed]    # (NF, NS) μ domain, FFT-order
+            NF           = r['NF']
+            NL_bar       = mode_power_t.shape[0]
+
+            # For bars: global max across the ENTIRE movie range, not just per-frame,
+            # so growing/shrinking power is visible.
+            bar_slice    = mode_power_t[:, steps]
+            bar_gmax     = float(bar_slice.max() or 1.)
+
+            pwr_th_k     = np.abs(A_th_k[:, steps])**2
+            pwr_th_gmax  = float(pwr_th_k.max() or 1.)
+
+            pwr_mu_k     = np.abs(A_mu_k[:, steps])**2
+            # Centered μ for display; same fftshift as _update_snapshots
+            pwr_mu_shift = np.fft.fftshift(pwr_mu_k, axes=0)
+            # dB floor: use 1e-20 to match on-screen snapshot plot
+            pwr_mu_db    = 10*np.log10(pwr_mu_shift + 1e-20)
+            mu_dB_top    = float(np.ceil(pwr_mu_db.max() + 1.0))
+            mu_dB_bot    = float(np.floor(pwr_mu_db.min() - 1.0))
+
+            fsr      = NF // 2
+            mu_ax    = np.arange(-fsr, fsr + 1)[:NF]
+            theta_ax = np.linspace(0, 2*np.pi, NF, endpoint=False)
+            eigvals  = r['eigvals']
+            x_iters  = r['x_iters']
+            lam_k    = eigvals[k_fixed]
+
+            self._modal_status.setText(f'Exporting {len(steps)} frames…')
+            QApplication.processEvents()
+
+            # ── Build export figure: 3 stacked panels ─────────────────
+            fig_exp = plt.figure(figsize=(7, 8), facecolor=DARK_BG)
+            fig_exp.subplots_adjust(left=0.11, right=0.96, top=0.94, bottom=0.07,
+                                    hspace=0.55)
+            ax_bar_e = fig_exp.add_subplot(3, 1, 1)
+            ax_th_e  = fig_exp.add_subplot(3, 1, 2)
+            ax_mu_e  = fig_exp.add_subplot(3, 1, 3)
+
+            def _style_exp(ax):
+                ax.set_facecolor(PANEL_BG)
+                ax.tick_params(colors=TEXT_COL, labelsize=7)
+                ax.grid(True, color=GRID_COL, lw=0.4)
+                for sp in ax.spines.values(): sp.set_edgecolor('#3a4560')
+
+            def _frame(si):
+                for ax in (ax_bar_e, ax_th_e, ax_mu_e): ax.cla()
+
+                # ── Top: mode-power bar chart (k highlighted) ─────
+                _style_exp(ax_bar_e)
+                pbar = mode_power_t[:, si]
+                colors = [K_COLOR if i == k_fixed else '#2a4a6a' for i in range(NL_bar)]
+                ax_bar_e.bar(np.arange(NL_bar), pbar / bar_gmax,
+                             color=colors, width=0.85)
+                ax_bar_e.set_title(
+                    f'Mode power   step {si}   (k = {k_fixed}, λ = {lam_k:.4f})',
+                    color=K_COLOR, fontsize=10, pad=4)
+                ax_bar_e.set_xlabel('Mode index k', color=TEXT_DIM, fontsize=9)
+                ax_bar_e.set_ylabel('Norm. |A|²  (global)', color=TEXT_DIM, fontsize=9)
+                ax_bar_e.set_xlim(-0.5, NL_bar - 0.5)
+                ax_bar_e.set_ylim(0, 1.05)
+
+                # ── Mid: |A(θ)|²  for this k at step si ───────────
+                _style_exp(ax_th_e)
+                ax_th_e.plot(theta_ax, np.abs(A_th_k[:, si])**2,
+                             color=K_COLOR, lw=1.4)
+                ax_th_e.set_title(f'|A(θ)|²   step {si}', color=K_COLOR,
+                                  fontsize=10, pad=4)
+                ax_th_e.set_xlabel('θ', color=TEXT_DIM, fontsize=9)
+                ax_th_e.set_xticks([0, np.pi, 2*np.pi])
+                ax_th_e.set_xticklabels(['0', 'π', '2π'], fontsize=8)
+                ax_th_e.set_xlim(0, 2*np.pi)
+                ax_th_e.set_ylim(0, pwr_th_gmax * 1.05)
+
+                # ── Bot: |A(μ)|² dB  for this k at step si ────────
+                _style_exp(ax_mu_e)
+                A_snap_db = 10*np.log10(
+                    np.fft.fftshift(np.abs(A_mu_k[:, si])**2) + 1e-20)
+                ax_mu_e.plot(mu_ax, A_snap_db, color=K_COLOR, lw=1.4)
+                ax_mu_e.set_title(f'|A(μ)|²   step {si}   (dB)',
+                                  color=K_COLOR, fontsize=10, pad=4)
+                ax_mu_e.set_xlabel('FSR  μ', color=TEXT_DIM, fontsize=9)
+                ax_mu_e.set_ylabel('dB', color=TEXT_DIM, fontsize=9)
+                ax_mu_e.set_xticks([-fsr, 0, fsr])
+                ax_mu_e.set_xticklabels([f'{-fsr}', '0', f'{fsr}'], fontsize=8)
+                ax_mu_e.set_xlim(-fsr, fsr)
+                ax_mu_e.set_ylim(mu_dB_bot, mu_dB_top)
+                return []
+
+            try:
+                if fmt == 'gif':
+                    import matplotlib.animation as animation
+                    ani = animation.FuncAnimation(
+                        fig_exp, _frame, frames=steps, blit=False)
+                    ani.save(out, writer='pillow', fps=fps_val)
+                else:
+                    try:
+                        import imageio
+                        from PIL import Image as _PILImage
+                    except ImportError:
+                        plt.close(fig_exp)
+                        self._modal_status.setText(
+                            '❌ MP4 needs imageio: pip install imageio imageio-ffmpeg')
+                        return
+                    frames_arr = []
+                    for si in steps:
+                        _frame(si)
+                        buf = io.BytesIO()
+                        fig_exp.savefig(buf, format='png', dpi=100,
+                                        facecolor=fig_exp.get_facecolor())
+                        buf.seek(0)
+                        frames_arr.append(
+                            np.array(_PILImage.open(buf).convert('RGB')))
+                    imageio.mimwrite(out, frames_arr, fps=fps_val, quality=8)
+            finally:
+                plt.close(fig_exp)
+
+            self._modal_status.setText(f'✅ Saved → {os.path.basename(out)}')
+
+        btn_gif.clicked.connect(lambda: _export_movie('gif'))
+        btn_mp4.clicked.connect(lambda: _export_movie('mp4'))
 
         spn_step.valueChanged.connect(_on_step_changed)
         sld_step.valueChanged.connect(_on_step_changed)
