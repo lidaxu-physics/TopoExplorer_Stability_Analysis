@@ -5,7 +5,7 @@
 # Topological Photonic Lattice Explorer — Stability Analysis
 
 **Author:** Lida Xu
-**License:** Proprietary — see [LICENSE](LICENSE) for terms
+**License:** MIT — see [LICENSE](LICENSE)
 
 ---
 
@@ -171,4 +171,4 @@ sweep. Its name encodes the lattice and sweep configuration.
 
 ## License
 
-Proprietary — Copyright (c) 2026 Lida Xu, all rights reserved. See [`LICENSE`](LICENSE).
+Released under the **MIT License** — see [`LICENSE`](LICENSE).
