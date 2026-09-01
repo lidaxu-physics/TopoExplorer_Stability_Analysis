@@ -1,0 +1,30 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# ---- PyInstaller build output ----
+build/
+dist/
+
+# ---- editors / OS ----
+.vscode/
+.idea/
+.spyproject/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- run outputs ----
+# Sweep output: .npz slow-time histories plus PNG/SVG panels. The .npz files
+# are binary, so each re-run would add a full copy to history permanently.
+#
+# The example run already committed is kept so the output layout is visible
+# without running a sweep. New runs stay local.
+# To publish another one, force-add it:  git add -f <run-folder>
+II_*/
+runs/
